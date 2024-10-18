@@ -1,0 +1,36 @@
+Create New POD:
+
+oc login --server="https://api.ocp-uat.corpuat.danamon.co.id:6443" --insecure-skip-tls-verify -u %username% -p %password%
+oc login --server="https://api.ocp-uat.corpuat.danamon.co.id:6443" --insecure-skip-tls-verify -u ngi-core -p P@ssw0rdP@ssw0rd
+oc project ngisit
+
+
+
+oc new-build --name=ao-lob-xref --image-stream=openshift/redhat-openjdk18-openshift:1.1 --binary -n ngisit
+oc start-build ao-lob-xref --from-file="D:\OpenShift\FCRNGIAOLOBXREF\SIT\17-10-2024\FCRNGIAOLOBXREF-0.0.0.1.jar" --follow -n ngisit
+
+
+
+
+oc new-app ao-lob-xref -n ngisit --as-deployment-config
+oc create route edge ao-lob-xref --service=ao-lob-xref --port=8080 --hostname=ao-lob-xref-ngisit.dbankke.uat.danamon.co.id -n ngisit
+oc annotate route ao-lob-xref --overwrite haproxy.router.openshift.io/timeout=30s
+
+
+Create or replace Config Map:
+
+oc project ngisit
+oc delete cm ao-lob-xref-cm
+oc delete cm ao-lob-xref-commons-cm
+
+oc create configmap ao-lob-xref-cm --from-file="D:\OpenShift\FCRNGIAOLOBXREF\SIT\application-ao-lob-xref.yml"
+oc create configmap ao-lob-xref-commons-cm  --from-file="D:\OpenShift\FCRNGIAOLOBXREF\SIT\global.properties"
+
+oc set volume dc/ao-lob-xref --add --overwrite=true --name=config-volume --mount-path=/deployments/config -t configmap --configmap-name=ao-lob-xref-cm 
+oc set volume dc/ao-lob-xref --add --overwrite=true --name=commons-volume --mount-path=/deployments/global -t configmap --configmap-name=ao-lob-xref-commons-cm
+
+oc set env dc/ao-lob-xref TZ=Asia/Jakarta -n ngisit
+oc set env dc/ao-lob-xref JAVA_TOOL_OPTIONS="-Duser.home=/home/jboss -Duser.name=jboss -Duser.timezone=GMT+07:00 -Xms2048M -Xmx2048M -Djava.security.egd=file:///dev/urandom"
+oc set env dc/ao-lob-xref GC_MAX_METASPACE_SIZE=1024
+
+oc set env --from=secret/ngi-secret dc/ao-lob-xref
